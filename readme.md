@@ -28,12 +28,12 @@ As you can see, there is more behind a simple search than just a database
 > #### A MVP that can search through WIKIPEDIA articels and understand the users intention and give a summary of what the Users question was out of the Data stored in the DB (Metadata like links and the summary).  
 
 ### How to I achive this goal?
-> - [] I collect data (Wikipedia artikels as a JSON)
-> - [] Embedding of the articels into the database (Metadata, and content as vectors)
-> - [] Build up the frontend 
-> - [] Initizilize the backend and build up a semantic search only
-> - [] Training of the Tiny-LLM based on Wikipedia artikels
-> - [] Implemeting of the Tiny-LLM into Backend and build a answer for user in markdown format
+> - [x] I collect data (Wikipedia artikels as a JSON)
+> - [x] Embedding of the articels into the database (Metadata, and content as vectors)
+> - [ ] Build up the frontend 
+> - [ ] Initizilize the backend and build up a semantic search only
+> - [ ] Training of the Tiny-LLM based on Wikipedia artikels
+> - [ ] Implemeting of the Tiny-LLM into Backend and build a answer for user in markdown format
 
 
 ## Techstack!
