@@ -1,19 +1,12 @@
 from sentence_transformers import SentenceTransformer
 import json
-import ijson
+import chromadb as db
+from langchain_text_splitters import CharacterTextSplitter
 
-"""Needs!
+PRESTIGE_DIR = "content/chroma_db"
 
--> Helperfunction: The function will go through every json, every time it findes a field names value, it saves the text. 
-
--> memory crash fixing (json.load will crash my memory with 70gb jsons
-    -> Streaming (ijson): Opens file, Takes everything out of one artikel and extrects the text, 
-    chunks it embed it and saves it in db. So all in one loop
-
-Reminder: ijson walkes through the hole json file and just takes one object. 
-
--> I need to load 3 sentences at once in the place of one index
-"""
+chroma_client = db.PersistentClient(path=PRESTIGE_DIR)
+collection = chroma_client.get_or_create_collection(name='wiki_entries')
 
 def recursive_search(json_data: dict, target_key: str):
     """Recursively search a dict for target_key
@@ -32,38 +25,63 @@ def recursive_search(json_data: dict, target_key: str):
             recursive_results.extend(recursive_search(value, target_key)) # -> we add every item to the list and call the function again to add the value finally to the results.
 # the recall of the function inside the function will cause that we create like a recursive list which will search deeper in the json and also add everything found in one "tree"
     elif isinstance(json_data, (int, float, bool, str)):
-        print(f"3. Check (basis-typ) json_data: {json_data}")
+        pass# print(f"3. Check (basis-typ) json_data: {json_data}")
 
     return recursive_results
 
-def process_an_object(v1, v2):
-    print(f"v1 = {v1}, \n v2 = {v2}")
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-with open('test.json') as f:
-    data = json.load(f)
-print(json.dumps(data, indent=4))
-y = json.loads(json.dumps(data, indent=4))
+with open('data/enwiki_namespace_0/enwiki_namespace_0_0.jsonl', 'r', encoding='utf-8') as input_file:
+    counter = 0
+    for line in input_file:
+        counter += 1
+        data = json.loads(line)
+        raw_recursive = recursive_search(data, "value")
 
-raw_recursive = recursive_search(y, "value")
+        #print(f"Artikel identifier: {data["identifier"]}")
+        #print(f"Artikel name: {data['name']}")
+        #print(f"Artikel url: {data['url']}")
 
-for sentence in raw_recursive:
-    if isinstance(sentence, (int, float)):
-        raw_recursive.remove(sentence)
+        clean_sentences = []
+        for sentence in raw_recursive:
+            if isinstance(sentence, str):
+                clean_sentences.append(sentence)
 
-results = []
-for sentence in range(0, len(raw_recursive), 3):
-    # searches every sentence from 0 to the length of all sentences in raw_recursive, but only 3 at once.
-    block = raw_recursive[sentence:sentence+3]
-    joined_block = ". ".join(block)
-    results.append(joined_block)
-print(f"Results: {results}")
+        text_string = " ".join(clean_sentences)
 
-embeddings = model.encode(results)
-print(f"Embeddings Shape: {embeddings.shape}")
+        if len(text_string) < 300:
+            continue
+        #print(f'text_string: {text_string}')
 
-print("-"*30)
+        splitter = CharacterTextSplitter(chunk_size=512, chunk_overlap=50)
+        chunks = splitter.split_text(text_string)
 
-similarities = model.similarity(embeddings, embeddings)
-print(similarities)
+        #print(f"chunks: {chunks}")
 
+        embeddings = model.encode(chunks)
+        #print(f"Embeddings Shape: {embeddings.shape}")
+
+        #print("-" * 30)
+
+        batch_chunk_embeddings = []
+        batch_chunk_texts = []
+        batch_ids = []
+        batch_metadatas = []
+        for chunk in range(0, len(chunks)):
+            chunk_text = chunks[chunk]
+            chunk_embedding = embeddings[chunk]
+            chunk_id = f"{data['identifier']}_{chunk}"
+            metadata = {"artikel_id": data["identifier"], "title": data["name"], "url": data["url"], "chunk_index": chunk}
+            batch_chunk_embeddings.append(chunk_embedding), batch_chunk_texts.append(chunk_text), batch_ids.append(chunk_id), batch_metadatas.append(metadata)
+        collection.add(
+            embeddings= batch_chunk_embeddings,
+            documents= batch_chunk_texts,
+            ids= batch_ids,
+            metadatas= batch_metadatas,
+        )
+
+        #similarities = model.similarity(embeddings, embeddings)
+        #print(similarities)
+
+        if counter > 100:
+            break
